@@ -7,9 +7,31 @@
 # 
 
 # モジュール読み込み
-import sys
-import scp
-import paramiko
+import sys          # ファイル動作に必要
+import scp          # SCPに必要
+import paramiko     # SCPに必要
+import configparser # コンフィグ読み込みに必要
+import os
+
+# コンフィグ読み込み
+config = configparser.ConfigParser() # object作成
+config.read('targetList.ini',encoding='utf-8') # 読み込み
+cnf=config['SETTINGS']
+
+# 初期設定読み込み
+hosts = cnf["ipLists"].split(":")
+user  = cnf["user"]
+pswd  = cnf["pswd"]
+HOME_DIR = cnf["homeDir"]
+WORK_DIR = cnf["workDir"]
+SUMMARY  = cnf["summaryFileName"]
+indexList = []
+
+# フォルダ作成
+try:
+  os.mkdir(WORK_DIR)
+except Exception as err:
+  pass
 
 # 引数チェック
 args = sys.argv # 引数でやりたいのはさかのぼり時間、フォルダ名
@@ -17,18 +39,13 @@ print("X分前:", args[1], "ファイルパス:" , args[2])
 TIME = args[1]
 FILE_PATH = args[2]
 
-# 初期設定読み込み
-hosts = ["192.168.3.15"] # TODO 外部ファイル化
-user  = "kali"
-pswd  = "kali"
-HOME_DIR = "/home/kali/SyachinekoLab/"
-WORK_DIR = "/box/"
-indexList = []
-
 # ホストに接続
 print("---START GET FILE---")
 try:
   for ip in hosts:
+
+    # フォルダとリストの作成
+    indexItem = ip
 
     # SSH/SCP接続
     with paramiko.SSHClient() as ssh:
@@ -41,18 +58,13 @@ try:
       for i in stdout:
         fileList.append(i.strip())
 
-      # フォルダとリストの作成
-      stdin, stdout, stderr = ssh.exec_command('mkdir -p '+WORK_DIR)
-      indexItem = ip
-
       # scp clientオブジェクト生成
       with scp.SCPClient(ssh.get_transport()) as scp:
         
         # 取得したファイル数分だけSCPで取得する
-        print(fileList)
         for fileName in fileList:
-          print(fileName)
-          scp.get(fileName,'.'+WORK_DIR)
+          print("get file from "+fileName)
+          scp.get(fileName,'./'+WORK_DIR)
           indexItem += " "+fileName
 
     # リストを作る
@@ -63,20 +75,20 @@ try:
 except Exception as err:
   print("GET FILE ERROR!! : ", err)
 
-# 結果を表示する
-
-
 # サマリファイルを作成する
-print(indexList)
 output = "---SUMMARY---\n"
-output += "---EXIST IP---\n"
+
 for i in range(len(indexList)):
   itemList = list(indexList[i].split())
   output += str(i+1)+" : "+itemList[0]+"\n"
+
   for j in range(1,len(itemList)):
     output += itemList[j]+"\n"
 
+# 画面出力およびファイルへの書き込み
 print(output)
+with open(SUMMARY, mode='w') as f:
+    f.write(output)
 
 # 終了
 print("---END PGM---")
